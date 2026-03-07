@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import '../models/recipe.dart';
 import '../models/ingredient.dart';
-import '../controllers/recipe_controller.dart';
+import '../controllers/recipe_controller.dart'; // Assure-toi que ce chemin correspond bien à ton dossier
 
 void main() => runApp(const CuisineProApp());
 
@@ -44,63 +44,49 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Définition des points de rupture responsive
         bool isMobile = constraints.maxWidth < 750;
-        int crossAxisCount = constraints.maxWidth > 1200 ? 4 : (constraints.maxWidth > 850 ? 3 : 2);
+        int crossAxisCount = constraints.maxWidth > 1200 ? 4 : (constraints.maxWidth > 850 ? 3 : (constraints.maxWidth > 500 ? 2 : 1));
 
         final filteredList = _filterCategory == 'Tous' 
             ? _controller.all 
             : _controller.all.where((r) => r.category == _filterCategory).toList();
 
         return Scaffold(
+          // Ajout du Drawer (menu hamburger) uniquement sur mobile
+          drawer: isMobile ? Drawer(child: _buildSidebar(isMobile: true)) : null,
           appBar: AppBar(
-            // Le bouton + est maintenant juste à côté du titre
             title: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("MES RECETTES", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () => _showFormDialog(), 
-                  icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 28),
-                  tooltip: "Ajouter une recette",
-                ),
+              children: const [
+                Text("MES RECETTES", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                SizedBox(width: 8),
               ],
             ),
             elevation: 0,
             actions: [
-              // Le bouton Authentification remplace le + tout à droite
-              Center(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Ajouter ta logique pour ouvrir la page/fenêtre d'authentification
-                    print("Bouton d'authentification cliqué !");
-                  },
-                  icon: const Icon(Icons.account_circle_outlined, size: 20),
-                  label: const Text("Authentification"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.tealAccent,
-                    side: const BorderSide(color: Colors.tealAccent),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                ),
+              IconButton(
+                onPressed: () => _showFormDialog(), 
+                icon: const Icon(Icons.add_circle_outline, color: Colors.tealAccent, size: 28),
+                tooltip: "Ajouter une recette",
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 10),
             ],
           ),
           body: Row(
             children: [
-              if (!isMobile) _buildSidebar(),
+              // Affichage de la sidebar fixe sur ordinateur/tablette
+              if (!isMobile) _buildSidebar(isMobile: false),
               Expanded(
                 child: Stack(
                   children: [
-                    GridView.builder( //affiche les recettes sous forme de grille
-                      padding: const EdgeInsets.all(20), //espacement autour de la grille
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount( // définit la structure de la grille
-                        crossAxisCount: crossAxisCount,//nombre de colonnes dans la grille
-                        childAspectRatio: 0.8,//ratio largeur/hauteur des éléments de la grille
-                        crossAxisSpacing: 10, //espacement horizontal entre les éléments de la grille
-                        mainAxisSpacing: 16, //espacement vertical entre les éléments de la grille
+                    GridView.builder(
+                      padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // Espace en bas pour le bouton
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        childAspectRatio: isMobile ? 1.0 : 0.8, // Ajustement du ratio sur mobile
+                        crossAxisSpacing: 15,
+                        mainAxisSpacing: 16,
                       ),
                       itemCount: filteredList.length,
                       itemBuilder: (context, index) => _recipeCard(filteredList[index]),
@@ -116,6 +102,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            elevation: 5,
                           ),
                           onPressed: () => _showPlanner(),
                           icon: const Icon(Icons.calendar_month),
@@ -133,30 +120,37 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({required bool isMobile}) {
     return Container(
-      width: 240,
-      decoration: const BoxDecoration(
+      width: isMobile ? double.infinity : 240,
+      decoration: BoxDecoration(
         color: Colors.black,
-        border: Border(right: BorderSide(color: Color(0xFF222222))),
+        border: isMobile ? null : const Border(right: BorderSide(color: Color(0xFF222222))),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text("NAVIGATION", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          ),
-          Expanded(
-            child: ListView(
-              children: categories.map((cat) => ListTile(
-                title: Text(cat, style: TextStyle(fontSize: 13, color: _filterCategory == cat ? Colors.tealAccent : Colors.white60)),
-                leading: Icon(Icons.folder_open, size: 16, color: _filterCategory == cat ? Colors.tealAccent : Colors.grey[700]),
-                onTap: () => setState(() => _filterCategory = cat),
-              )).toList(),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text("NAVIGATION", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
             ),
-          ),
-        ],
+            Expanded(
+              child: ListView(
+                children: categories.map((cat) => ListTile(
+                  title: Text(cat, style: TextStyle(fontSize: 14, color: _filterCategory == cat ? Colors.tealAccent : Colors.white60)),
+                  leading: Icon(Icons.folder_open, size: 18, color: _filterCategory == cat ? Colors.tealAccent : Colors.grey[700]),
+                  onTap: () {
+                    setState(() => _filterCategory = cat);
+                    if (isMobile) {
+                      Navigator.pop(context); // Fermer le drawer sur mobile après un clic
+                    }
+                  },
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -199,7 +193,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
 
   void _showFormDialog() {
     final titleController = TextEditingController();
-    final urlController = TextEditingController(text: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?w=500');
     MealPart selectedPart = MealPart.plat;
     String selectedCat = categories[1];
 
@@ -214,60 +207,60 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(controller: titleController, decoration: const InputDecoration(labelText: "Titre", border: UnderlineInputBorder())),
-                const SizedBox(height: 15),//size entre titre et categorie
+                const SizedBox(height: 15),
                 DropdownButtonFormField<String>(
                   value: selectedCat,
                   items: categories.where((c) => c != 'Tous').map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: (v) => setDialogState(() => selectedCat = v!),
                   decoration: const InputDecoration(labelText: "Catégorie"),
                 ),
-                const SizedBox(height: 15), //size entrecategorie et partie du repas
+                const SizedBox(height: 15),
                 DropdownButtonFormField<MealPart>(
                   value: selectedPart,
                   items: MealPart.values.map((p) => DropdownMenuItem(value: p, child: Text(p.label))).toList(),
                   onChanged: (v) => setDialogState(() => selectedPart = v!),
                   decoration: const InputDecoration(labelText: "Partie du repas"),
                 ),
-                const SizedBox(height: 15), //size entre partie du repas et url de l'image
-                TextField(controller: urlController, decoration: const InputDecoration(labelText: "URL de l'image", border: UnderlineInputBorder())),//texte pour l'url de l'image
+                // Le champ URL a été supprimé ici
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),//texte du bouton annuler
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),//style du bouton valider
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
               onPressed: () {
                 if(titleController.text.isNotEmpty) {
                   _controller.store(Recipe(
                     id: DateTime.now().toString(),
-                    title: titleController.text,//texte pour le titre de la recette
-                    category: selectedCat, //catégorie de la recette
-                    label: 'Nouveau',//label de la recette
-                    part: selectedPart,//partie du repas
-                    imageUrl: urlController.text,//url de l'image
-                    createdAt: DateTime.now(),//date de création de la recette
-                    ingredients: [],//liste d'ingrédients vide pour commencer
+                    title: titleController.text,
+                    category: selectedCat,
+                    label: 'Nouveau',
+                    part: selectedPart,
+                    // URL par défaut injectée automatiquement
+                    imageUrl: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?w=500', 
+                    createdAt: DateTime.now(),
+                    ingredients: [],
                   ));
-                  setState(() {}); //rafraîchir la liste des recettes
-                  Navigator.pop(context); //  fermer le dialogue après validation
+                  setState(() {});
+                  Navigator.pop(context); 
                 }
               },
-              child: const Text("VALIDER"),//texte du bouton valider
+              child: const Text("VALIDER"),
             ),
           ],
-        ),//fin du AlertDialog
-      ),//fin du dialogue de création de recette
-    );//fin du dialogue de création de recette
-  }//fin de la fonction de création de recette
+        ),
+      ),
+    );
+  }
 
-  void _showPlanner() { // Affiche le planning hebdomadaire dans un bottom sheet
-    final plan = _controller.generateWeeklyPlan();//génère le planning hebdomadaire à partir du controller de recettes
-    showModalBottomSheet( // Affiche le planning hebdomadaire dans un bottom sheet
-      context: context, //contexte pour afficher le bottom sheet
+  void _showPlanner() { 
+    final plan = _controller.generateWeeklyPlan();
+    showModalBottomSheet( 
+      context: context, 
       isScrollControlled: true,
       backgroundColor: const Color.fromARGB(255, 248, 246, 246),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))), //style du bottom sheet 
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))), 
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.8,
         minChildSize: 0.5,
@@ -277,7 +270,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           children: [
             const Padding(
               padding: EdgeInsets.all(20.0),
-              child: Text("PLANNING HEBDOMADAIRE", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+              child: Text("PLANNING HEBDOMADAIRE", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)), // teal au lieu de tealAccent car fond blanc
             ),
             Expanded(
               child: ListView(
@@ -296,8 +289,8 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(day, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-        const Divider(color: Colors.white10),
+        Text(day, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)), // teal car fond blanc
+        const Divider(color: Colors.black12),
         _buildMealSection("MIDI", meals["Midi"]!),
         _buildMealSection("SOIR", meals["Soir"]!),
         const SizedBox(height: 30),
@@ -309,14 +302,14 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start, 
         children: [
           Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 5),
-          Text("🥗 ${recipes[0].title}", style: const TextStyle(fontSize: 14)),
-          Text("🍖 ${recipes[1].title}", style: const TextStyle(fontSize: 14)),
-          Text("🍰 ${recipes[2].title}", style: const TextStyle(fontSize: 14)),
-        ],
+          const SizedBox(height: 5), 
+          Text("🥗 ${recipes[0].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)), 
+          Text("🍖 ${recipes[1].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)),
+          Text("🍰 ${recipes[2].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)), 
+        ], 
       ),
     );
   }
@@ -372,6 +365,10 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Calcul de l'écran pour le responsive de la page détail
+    double screenWidth = MediaQuery.of(context).size.width;
+    bool isMobile = screenWidth < 600;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -391,16 +388,18 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.network(widget.recipe.imageUrl, height: 350, width: double.infinity, fit: BoxFit.cover),
+            Image.network(widget.recipe.imageUrl, height: isMobile ? 250 : 350, width: double.infinity, fit: BoxFit.cover),
             
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40),
+              // Padding ajusté pour mobile et desktop
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.0 : 32.0, vertical: isMobile ? 24.0 : 40.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: _titleController,
-                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: -1),
+                    // Taille de titre responsive
+                    style: TextStyle(fontSize: isMobile ? 28 : 40, fontWeight: FontWeight.bold, letterSpacing: -1),
                     maxLines: null,
                     onChanged: (val) => _syncData(),
                     decoration: const InputDecoration(hintText: "Titre de la recette", border: InputBorder.none, hintStyle: TextStyle(color: Colors.white24)),
@@ -435,8 +434,8 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Icon(Icons.drag_indicator, size: 16, color: Colors.white24),
-                          const SizedBox(width: 8),
+                          if (!isMobile) const Icon(Icons.drag_indicator, size: 16, color: Colors.white24),
+                          if (!isMobile) const SizedBox(width: 8),
                           const Icon(Icons.check_box_outline_blank, size: 18, color: Colors.grey),
                           const SizedBox(width: 12),
                           
@@ -455,7 +454,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                           ),
                           
                           SizedBox(
-                            width: 60,
+                            width: 50, // un peu réduit pour laisser plus de place au nom sur mobile
                             child: TextField(
                               controller: controllers.unit,
                               onChanged: (val) {
@@ -533,7 +532,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
         children: [
           Icon(icon, size: 16, color: Colors.grey[600]),
           const SizedBox(width: 12),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14))),
+          SizedBox(width: 100, child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
         ],
       ),
