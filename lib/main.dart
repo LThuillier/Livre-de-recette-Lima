@@ -211,7 +211,19 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           children: [
             Expanded(child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Image.network(recipe.imageUrl, fit: BoxFit.cover, width: double.infinity),
+              // Gestion intelligente de l'image (URL internet OU fichier local assets)
+              child: recipe.imageUrl.startsWith('http')
+                  ? Image.network(recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
+                  : Image.asset(
+                      recipe.imageUrl, 
+                      fit: BoxFit.cover, 
+                      width: double.infinity,
+                      // Si le nom du fichier est faux ou introuvable, affiche une icône grise au lieu de planter
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey[800], 
+                        child: const Icon(Icons.image_not_supported, color: Colors.white54, size: 40)
+                      ),
+                    ),
             )),
             Padding(
               padding: const EdgeInsets.all(12.0),
@@ -232,6 +244,9 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
 
   void _showFormDialog() {
     final titleController = TextEditingController();
+    // J'ai mis à jour ici avec ton nouveau dossier "pictures"
+    final imageController = TextEditingController(text: 'assets/pictures/pancake.png'); 
+    
     MealPart selectedPart = MealPart.plat;
     String selectedCat = categories[1];
 
@@ -260,6 +275,16 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                   onChanged: (v) => setDialogState(() => selectedPart = v!),
                   decoration: const InputDecoration(labelText: "Partie du repas"),
                 ),
+                const SizedBox(height: 15),
+                // Champ pour saisir le chemin de l'image (local ou distant) mis à jour
+                TextField(
+                  controller: imageController, 
+                  decoration: const InputDecoration(
+                    labelText: "Chemin de l'image", 
+                    hintText: "ex: assets/pictures/pancake.png",
+                    border: UnderlineInputBorder()
+                  )
+                ),
               ],
             ),
           ),
@@ -277,7 +302,8 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                     category: selectedCat,
                     label: 'Nouveau',
                     part: selectedPart,
-                    imageUrl: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?w=500', 
+                    // On utilise le texte tapé par l'utilisateur
+                    imageUrl: imageController.text.isNotEmpty ? imageController.text : 'assets/pictures/pancake.png', 
                     createdAt: DateTime.now(),
                     ingredients: [],
                   ));
@@ -401,6 +427,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
       widget.recipe.id,
       title: _titleController.text,
       desc: _descController.text,
+      part: widget.recipe.part, // <-- J'ai ajouté l'envoi de la Partie vers Supabase ici
     );
   }
 
@@ -411,36 +438,51 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
     bool isMobile = screenWidth < 600;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            onPressed: () async {
-              // On attend que la suppression s'effectue dans la base
-              await widget.controller.destroy(widget.recipe.id);
-              if (context.mounted) Navigator.pop(context);
-            },
+      backgroundColor: const Color(0xFF0F0F0F),
+      // Remplacement du SingleChildScrollView par CustomScrollView pour gérer le rapetissement de l'image (Sliver)
+      body: CustomScrollView(
+        slivers: [
+          // L'image qui se réduit quand on scrolle
+          SliverAppBar(
+            expandedHeight: isMobile ? 250 : 350,
+            pinned: true, // Garde les boutons retour et supprimer toujours visibles en haut
+            backgroundColor: const Color(0xFF0F0F0F),
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                onPressed: () async {
+                  // On attend que la suppression s'effectue dans la base
+                  await widget.controller.destroy(widget.recipe.id);
+                  if (context.mounted) Navigator.pop(context);
+                },
+              ),
+              const SizedBox(width: 10),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: widget.recipe.imageUrl.startsWith('http')
+                  ? Image.network(widget.recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
+                  : Image.asset(
+                      widget.recipe.imageUrl, 
+                      fit: BoxFit.cover, 
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey[800], 
+                        child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white54, size: 60))
+                      ),
+                    ),
+            ),
           ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Image.network(widget.recipe.imageUrl, height: isMobile ? 250 : 350, width: double.infinity, fit: BoxFit.cover),
-            
-            Padding(
-              // Padding ajusté pour mobile et desktop
+          
+          // Le reste du contenu qui va glisser sous l'image
+          SliverToBoxAdapter(
+            child: Padding(
               padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.0 : 32.0, vertical: isMobile ? 24.0 : 40.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: _titleController,
-                    // Taille de titre responsive
                     style: TextStyle(fontSize: isMobile ? 28 : 40, fontWeight: FontWeight.bold, letterSpacing: -1),
                     maxLines: null,
                     onChanged: (val) => _syncData(),
@@ -449,7 +491,10 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   
                   const SizedBox(height: 24),
                   _notionProperty(Icons.person_outline, "Owner", widget.recipe.owner),
-                  _notionProperty(Icons.tag_outlined, "Partie", widget.recipe.part.label),
+                  
+                  // Nouveau menu déroulant modifiable pour la Partie (Entrée, Plat, Dessert)
+                  _editableMealPartProperty(),
+                  
                   _notionProperty(Icons.calendar_today_outlined, "Créé le", "${widget.recipe.createdAt.day}/${widget.recipe.createdAt.month}/${widget.recipe.createdAt.year}"),
                   
                   const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Divider(color: Color(0xFF2A2A2A))),
@@ -496,7 +541,7 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                           ),
                           
                           SizedBox(
-                            width: 50, // un peu réduit pour laisser plus de place au nom sur mobile
+                            width: 50,
                             child: TextField(
                               controller: controllers.unit,
                               onChanged: (val) {
@@ -561,8 +606,8 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -576,6 +621,40 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
           const SizedBox(width: 12),
           SizedBox(width: 100, child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+
+  // Nouveau widget pour rendre la Partie modifiable avec un Dropdown transparent
+  Widget _editableMealPartProperty() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(Icons.tag_outlined, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          SizedBox(width: 100, child: Text("Partie", style: TextStyle(color: Colors.grey[600], fontSize: 14))),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<MealPart>(
+                value: widget.recipe.part,
+                isDense: true,
+                iconSize: 20,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
+                dropdownColor: const Color(0xFF1A1A1A),
+                items: MealPart.values.map((p) => DropdownMenuItem(value: p, child: Text(p.label))).toList(),
+                onChanged: (newPart) {
+                  if (newPart != null) {
+                    setState(() {
+                      widget.recipe.part = newPart;
+                    });
+                    _syncData(); // Synchronise instantanément le changement dans Supabase
+                  }
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
