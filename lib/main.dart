@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import '../models/recipe.dart';
 import '../models/ingredient.dart';
-import '../controllers/recipe_controller.dart'; // Assure-toi que ce chemin correspond bien à ton dossier
+import '../controllers/recipe_controller.dart'; 
 
-void main() => runApp(const CuisineProApp());
+Future<void> main() async {
+  // Obligatoire pour initialiser des plugins Flutter (comme Supabase) avant le runApp
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialisation de Supabase avec tes identifiants
+  await Supabase.initialize(
+    url: 'https://sbacvmiavmoekrkupgme.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNiYWN2bWlhdm1vZWtya3VwZ21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Nzk3MzQsImV4cCI6MjA4ODQ1NTczNH0.rm-fW7ESdS-QO78AC0NAWpPtVqWAyyauVuHwIebIbtw',
+  );
+
+  runApp(const CuisineProApp());
+}
 
 class CuisineProApp extends StatelessWidget {
   const CuisineProApp({super.key});
@@ -39,6 +51,26 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   final RecipeController _controller = RecipeController();
   String _filterCategory = 'Tous';
   final List<String> categories = ['Tous', 'Salé-Viandes', 'Salé-Poisson', 'Salé-Veggie', 'Sucré'];
+  
+  // Variable pour gérer l'affichage du spinner de chargement
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecipes();
+  }
+
+  Future<void> _loadRecipes() async {
+    // On demande au contrôleur de télécharger les recettes depuis Supabase !
+    await _controller.fetchRecipes();
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,17 +112,23 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
               Expanded(
                 child: Stack(
                   children: [
-                    GridView.builder(
-                      padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // Espace en bas pour le bouton
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        childAspectRatio: isMobile ? 1.0 : 0.8, // Ajustement du ratio sur mobile
-                        crossAxisSpacing: 15,
-                        mainAxisSpacing: 16,
-                      ),
-                      itemCount: filteredList.length,
-                      itemBuilder: (context, index) => _recipeCard(filteredList[index]),
-                    ),
+                    // Affichage conditionnel : Spinner de chargement OU la Grille de recettes
+                    _isLoading 
+                      ? const Center(
+                          child: CircularProgressIndicator(color: Colors.tealAccent)
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // Espace en bas pour le bouton
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            childAspectRatio: isMobile ? 1.0 : 0.8, // Ajustement du ratio sur mobile
+                            crossAxisSpacing: 15,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) => _recipeCard(filteredList[index]),
+                        ),
+                    
                     Positioned(
                       bottom: 20,
                       left: 20,
@@ -158,6 +196,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   Widget _recipeCard(Recipe recipe) {
     return InkWell(
       onTap: () async {
+        // On attend (await) que la page de détail se ferme. Si on a supprimé/modifié la recette, on met à jour la grille
         await Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe, controller: _controller)));
         setState(() {}); 
       },
@@ -221,7 +260,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                   onChanged: (v) => setDialogState(() => selectedPart = v!),
                   decoration: const InputDecoration(labelText: "Partie du repas"),
                 ),
-                // Le champ URL a été supprimé ici
               ],
             ),
           ),
@@ -229,21 +267,24 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
-              onPressed: () {
+              // Ajout de "async" pour pouvoir envoyer la donnée sur Supabase
+              onPressed: () async {
                 if(titleController.text.isNotEmpty) {
-                  _controller.store(Recipe(
-                    id: DateTime.now().toString(),
+                  // On attend que la BDD crée la recette avec "await"
+                  await _controller.store(Recipe(
+                    id: DateTime.now().toString(), // Cet ID temporaire sera écrasé par le vrai UUID généré par la base de données
                     title: titleController.text,
                     category: selectedCat,
                     label: 'Nouveau',
                     part: selectedPart,
-                    // URL par défaut injectée automatiquement
                     imageUrl: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?w=500', 
                     createdAt: DateTime.now(),
                     ingredients: [],
                   ));
+                  // On recharge l'affichage local
                   setState(() {});
-                  Navigator.pop(context); 
+                  // Fermeture du modal de création
+                  if (context.mounted) Navigator.pop(context); 
                 }
               },
               child: const Text("VALIDER"),
@@ -375,9 +416,10 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            onPressed: () {
-              widget.controller.destroy(widget.recipe.id);
-              Navigator.pop(context);
+            onPressed: () async {
+              // On attend que la suppression s'effectue dans la base
+              await widget.controller.destroy(widget.recipe.id);
+              if (context.mounted) Navigator.pop(context);
             },
           ),
           const SizedBox(width: 10),
