@@ -79,7 +79,7 @@ class RecipeController {
   Timer? _debounce;
 
   // 3. METTRE À JOUR : Éditeur style Notion
-  Future<void> update(String id, {String? title, String? desc, String? cat, MealPart? part}) async {
+  Future<void> update(String id, {String? title, String? desc, String? cat, MealPart? part, String? imageUrl}) async {
     // A. Mise à jour IMMÉDIATE de l'affichage local (pour une expérience fluide)
     int index = _recipes.indexWhere((r) => r.id == id);
     if (index == -1) return;
@@ -88,6 +88,7 @@ class RecipeController {
     if (desc != null) _recipes[index].description = desc;
     if (cat != null) _recipes[index].category = cat;
     if (part != null) _recipes[index].part = part;
+    if (imageUrl != null) _recipes[index].imageUrl = imageUrl; // Mise à jour locale de l'image
 
     Recipe currentRecipe = _recipes[index];
 
@@ -101,6 +102,7 @@ class RecipeController {
           'description': currentRecipe.description,
           'category': currentRecipe.category,
           'part': currentRecipe.part.name,
+          'image_url': currentRecipe.imageUrl, // Mise à jour de l'image dans Supabase
         }).eq('id', id);
 
         // Synchronisation des "ingredients" (on supprime les anciens et on insère la nouvelle liste)

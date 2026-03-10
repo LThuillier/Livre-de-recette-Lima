@@ -6,10 +6,8 @@ import '../models/ingredient.dart';
 import '../controllers/recipe_controller.dart'; 
 
 Future<void> main() async {
-  // Obligatoire pour initialiser des plugins Flutter (comme Supabase) avant le runApp
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialisation de Supabase avec tes identifiants
   await Supabase.initialize(
     url: 'https://sbacvmiavmoekrkupgme.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNiYWN2bWlhdm1vZWtya3VwZ21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4Nzk3MzQsImV4cCI6MjA4ODQ1NTczNH0.rm-fW7ESdS-QO78AC0NAWpPtVqWAyyauVuHwIebIbtw',
@@ -52,8 +50,11 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   String _filterCategory = 'Tous';
   final List<String> categories = ['Tous', 'Salé-Viandes', 'Salé-Poisson', 'Salé-Veggie', 'Sucré'];
   
-  // Variable pour gérer l'affichage du spinner de chargement
   bool _isLoading = true;
+
+  // --- VARIABLES POUR LE PLANNING PERSISTANT ---
+  Map<String, Map<String, List<Recipe>>>? _weeklyPlan;
+  DateTime? _planDate;
 
   @override
   void initState() {
@@ -62,9 +63,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   }
 
   Future<void> _loadRecipes() async {
-    // On demande au contrôleur de télécharger les recettes depuis Supabase !
     await _controller.fetchRecipes();
-    
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -72,11 +71,41 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     }
   }
 
+  // --- LOGIQUE DU PLANNING ---
+  void _initOrGetPlan() {
+    // Si le plan n'existe pas ou qu'il date de plus de 7 jours, on le (re)génère
+    if (_weeklyPlan == null || _planDate == null || DateTime.now().difference(_planDate!).inDays >= 7) {
+      _weeklyPlan = _generatePlan();
+      _planDate = DateTime.now();
+    }
+  }
+
+  Map<String, Map<String, List<Recipe>>> _generatePlan() {
+    final days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+    Map<String, Map<String, List<Recipe>>> plan = {};
+    for (var day in days) {
+      plan[day] = {"Midi": _getRandomFullMeal(), "Soir": _getRandomFullMeal()};
+    }
+    return plan;
+  }
+
+  List<Recipe> _getRandomFullMeal() {
+    final entrees = _controller.all.where((r) => r.part == MealPart.entree).toList();
+    final plats = _controller.all.where((r) => r.part == MealPart.plat).toList();
+    final desserts = _controller.all.where((r) => r.part == MealPart.dessert).toList();
+    Recipe fallback = _controller.all.isNotEmpty ? _controller.all.first : Recipe(id: '0', title: 'Aucune recette', category: '', label: '', imageUrl: 'assets/pictures/default.png', createdAt: DateTime.now(), ingredients: []);
+    
+    return [
+      entrees.isNotEmpty ? entrees[Random().nextInt(entrees.length)] : fallback,
+      plats.isNotEmpty ? plats[Random().nextInt(plats.length)] : fallback,
+      desserts.isNotEmpty ? desserts[Random().nextInt(desserts.length)] : fallback,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Définition des points de rupture responsive
         bool isMobile = constraints.maxWidth < 750;
         int crossAxisCount = constraints.maxWidth > 1200 ? 4 : (constraints.maxWidth > 850 ? 3 : (constraints.maxWidth > 500 ? 2 : 1));
 
@@ -85,7 +114,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
             : _controller.all.where((r) => r.category == _filterCategory).toList();
 
         return Scaffold(
-          // Ajout du Drawer (menu hamburger) uniquement sur mobile
           drawer: isMobile ? Drawer(child: _buildSidebar(isMobile: true)) : null,
           appBar: AppBar(
             title: Row(
@@ -107,21 +135,17 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           ),
           body: Row(
             children: [
-              // Affichage de la sidebar fixe sur ordinateur/tablette
               if (!isMobile) _buildSidebar(isMobile: false),
               Expanded(
                 child: Stack(
                   children: [
-                    // Affichage conditionnel : Spinner de chargement OU la Grille de recettes
                     _isLoading 
-                      ? const Center(
-                          child: CircularProgressIndicator(color: Colors.tealAccent)
-                        )
+                      ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
                       : GridView.builder(
-                          padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // Espace en bas pour le bouton
+                          padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100),
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: crossAxisCount,
-                            childAspectRatio: isMobile ? 1.0 : 0.8, // Ajustement du ratio sur mobile
+                            childAspectRatio: isMobile ? 1.0 : 0.8,
                             crossAxisSpacing: 15,
                             mainAxisSpacing: 16,
                           ),
@@ -181,7 +205,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                   onTap: () {
                     setState(() => _filterCategory = cat);
                     if (isMobile) {
-                      Navigator.pop(context); // Fermer le drawer sur mobile après un clic
+                      Navigator.pop(context);
                     }
                   },
                 )).toList(),
@@ -196,7 +220,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   Widget _recipeCard(Recipe recipe) {
     return InkWell(
       onTap: () async {
-        // On attend (await) que la page de détail se ferme. Si on a supprimé/modifié la recette, on met à jour la grille
         await Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe, controller: _controller)));
         setState(() {}); 
       },
@@ -211,14 +234,12 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           children: [
             Expanded(child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              // Gestion intelligente de l'image (URL internet OU fichier local assets)
               child: recipe.imageUrl.startsWith('http')
                   ? Image.network(recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
                   : Image.asset(
                       recipe.imageUrl, 
                       fit: BoxFit.cover, 
                       width: double.infinity,
-                      // Si le nom du fichier est faux ou introuvable, affiche une icône grise au lieu de planter
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: Colors.grey[800], 
                         child: const Icon(Icons.image_not_supported, color: Colors.white54, size: 40)
@@ -244,7 +265,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
 
   void _showFormDialog() {
     final titleController = TextEditingController();
-    // J'ai mis à jour ici avec ton nouveau dossier "pictures"
     final imageController = TextEditingController(text: 'assets/pictures/pancake.png'); 
     
     MealPart selectedPart = MealPart.plat;
@@ -276,7 +296,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                   decoration: const InputDecoration(labelText: "Partie du repas"),
                 ),
                 const SizedBox(height: 15),
-                // Champ pour saisir le chemin de l'image (local ou distant) mis à jour
                 TextField(
                   controller: imageController, 
                   decoration: const InputDecoration(
@@ -292,24 +311,19 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
-              // Ajout de "async" pour pouvoir envoyer la donnée sur Supabase
               onPressed: () async {
                 if(titleController.text.isNotEmpty) {
-                  // On attend que la BDD crée la recette avec "await"
                   await _controller.store(Recipe(
-                    id: DateTime.now().toString(), // Cet ID temporaire sera écrasé par le vrai UUID généré par la base de données
+                    id: DateTime.now().toString(),
                     title: titleController.text,
                     category: selectedCat,
                     label: 'Nouveau',
                     part: selectedPart,
-                    // On utilise le texte tapé par l'utilisateur
                     imageUrl: imageController.text.isNotEmpty ? imageController.text : 'assets/pictures/pancake.png', 
                     createdAt: DateTime.now(),
                     ingredients: [],
                   ));
-                  // On recharge l'affichage local
                   setState(() {});
-                  // Fermeture du modal de création
                   if (context.mounted) Navigator.pop(context); 
                 }
               },
@@ -322,68 +336,131 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   }
 
   void _showPlanner() { 
-    final plan = _controller.generateWeeklyPlan();
+    _initOrGetPlan(); 
+
     showModalBottomSheet( 
       context: context, 
       isScrollControlled: true,
       backgroundColor: const Color.fromARGB(255, 248, 246, 246),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))), 
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Text("PLANNING HEBDOMADAIRE", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)), // teal au lieu de tealAccent car fond blanc
+      builder: (context) => StatefulBuilder( 
+        builder: (BuildContext context, StateSetter setSheetState) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.8,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("PLANNING HEBDOMADAIRE", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal)),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.teal),
+                        tooltip: "Générer une nouvelle semaine",
+                        onPressed: () {
+                          setState(() {
+                            _weeklyPlan = _generatePlan();
+                            _planDate = DateTime.now();
+                          });
+                          setSheetState(() {});
+                        },
+                      )
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(20),
+                    children: _weeklyPlan!.keys.map((day) => _buildDayPlan(day, _weeklyPlan![day]!, setSheetState)).toList(),
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(20),
-                children: plan.keys.map((day) => _buildDayPlan(day, plan[day]!)).toList(),
-              ),
-            ),
-          ],
-        ),
+          );
+        }
       ),
     );
   }
 
-  Widget _buildDayPlan(String day, Map<String, List<Recipe>> meals) {
+  Widget _buildDayPlan(String day, Map<String, List<Recipe>> meals, StateSetter setSheetState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(day, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)), // teal car fond blanc
+        Text(day, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)), 
         const Divider(color: Colors.black12),
-        _buildMealSection("MIDI", meals["Midi"]!),
-        _buildMealSection("SOIR", meals["Soir"]!),
+        _buildMealSection(day, "Midi", meals["Midi"]!, setSheetState),
+        _buildMealSection(day, "Soir", meals["Soir"]!, setSheetState),
         const SizedBox(height: 30),
       ],
     );
   }
 
-  Widget _buildMealSection(String title, List<Recipe> recipes) {
+  Widget _buildMealSection(String day, String mealTime, List<Recipe> recipes, StateSetter setSheetState) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, 
         children: [
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Row(
+            children: [
+              Text(mealTime.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _weeklyPlan![day]![mealTime] = _getRandomFullMeal();
+                  });
+                  setSheetState(() {}); 
+                },
+                child: const Icon(Icons.autorenew, size: 16, color: Colors.teal),
+              )
+            ],
+          ),
           const SizedBox(height: 5), 
-          Text("🥗 ${recipes[0].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)), 
-          Text("🍖 ${recipes[1].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)),
-          Text("🍰 ${recipes[2].title}", style: const TextStyle(fontSize: 14, color: Colors.black87)), 
+          _buildDishRow(day, mealTime, 0, "🥗", recipes[0], setSheetState),
+          _buildDishRow(day, mealTime, 1, "🍖", recipes[1], setSheetState),
+          _buildDishRow(day, mealTime, 2, "🍰", recipes[2], setSheetState),
         ], 
       ),
+    );
+  }
+
+  Widget _buildDishRow(String day, String mealTime, int dishIndex, String emoji, Recipe recipe, StateSetter setSheetState) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text("$emoji ${recipe.title}", style: const TextStyle(fontSize: 14, color: Colors.black87), overflow: TextOverflow.ellipsis),
+        ),
+        IconButton(
+          icon: const Icon(Icons.sync, size: 18, color: Colors.black45),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          tooltip: "Changer ce plat",
+          onPressed: () {
+            final allRecipes = _controller.all;
+            MealPart targetPart = dishIndex == 0 ? MealPart.entree : (dishIndex == 1 ? MealPart.plat : MealPart.dessert);
+            final candidates = allRecipes.where((r) => r.part == targetPart).toList();
+            
+            if (candidates.isNotEmpty) {
+              setState(() {
+                _weeklyPlan![day]![mealTime]![dishIndex] = candidates[Random().nextInt(candidates.length)];
+              });
+              setSheetState(() {});
+            }
+          },
+        ),
+      ],
     );
   }
 }
 
 // =============================================================================
-// VUE DÉTAIL : ÉDITEUR DIRECT STYLE NOTION (Titre, Desc. ET Ingrédients)
+// VUE DÉTAIL : ÉDITEUR DIRECT STYLE NOTION
 // =============================================================================
 
 class _IngredientControllers {
@@ -406,6 +483,9 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
   late TextEditingController _titleController;
   late TextEditingController _descController;
   final List<_IngredientControllers> _ingControllers = [];
+  
+  // Liste des catégories pour l'édition (sans 'Tous')
+  final List<String> editCategories = ['Salé-Viandes', 'Salé-Poisson', 'Salé-Veggie', 'Sucré'];
 
   @override
   void initState() {
@@ -427,54 +507,137 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
       widget.recipe.id,
       title: _titleController.text,
       desc: _descController.text,
-      part: widget.recipe.part, // <-- J'ai ajouté l'envoi de la Partie vers Supabase ici
+      part: widget.recipe.part,
+      cat: widget.recipe.category,
+      imageUrl: widget.recipe.imageUrl,
+    );
+  }
+
+  void _showFullScreenImage() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(10),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer( 
+              child: widget.recipe.imageUrl.startsWith('http')
+                  ? Image.network(widget.recipe.imageUrl, fit: BoxFit.contain)
+                  : Image.asset(widget.recipe.imageUrl, fit: BoxFit.contain),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
+              onPressed: () => Navigator.pop(context),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Boîte de dialogue pour modifier l'image
+  void _showEditImageDialog() {
+    final TextEditingController imgController = TextEditingController(text: widget.recipe.imageUrl);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF151515),
+        title: const Text("Modifier l'image"),
+        content: TextField(
+          controller: imgController,
+          decoration: const InputDecoration(
+            labelText: "Chemin ou URL de l'image",
+            hintText: "ex: assets/pictures/pancake.png",
+            border: UnderlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
+            onPressed: () {
+              setState(() {
+                widget.recipe.imageUrl = imgController.text;
+              });
+              _syncData(); // Déclenche la sauvegarde
+              Navigator.pop(context);
+            },
+            child: const Text("VALIDER"),
+          )
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Calcul de l'écran pour le responsive de la page détail
     double screenWidth = MediaQuery.of(context).size.width;
     bool isMobile = screenWidth < 600;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      // Remplacement du SingleChildScrollView par CustomScrollView pour gérer le rapetissement de l'image (Sliver)
       body: CustomScrollView(
         slivers: [
-          // L'image qui se réduit quand on scrolle
           SliverAppBar(
-            expandedHeight: isMobile ? 250 : 350,
-            pinned: true, // Garde les boutons retour et supprimer toujours visibles en haut
+            expandedHeight: isMobile ? 250 : 500, 
+            pinned: true,
             backgroundColor: const Color(0xFF0F0F0F),
             elevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                onPressed: () async {
-                  // On attend que la suppression s'effectue dans la base
-                  await widget.controller.destroy(widget.recipe.id);
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-              const SizedBox(width: 10),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: widget.recipe.imageUrl.startsWith('http')
-                  ? Image.network(widget.recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
-                  : Image.asset(
-                      widget.recipe.imageUrl, 
-                      fit: BoxFit.cover, 
-                      width: double.infinity,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey[800], 
-                        child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white54, size: 60))
-                      ),
+            // Les actions (ancienne corbeille) ont été supprimées d'ici
+            flexibleSpace: FlexibleSpaceBar( 
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  GestureDetector( 
+                    onTap: _showFullScreenImage,
+                    child: widget.recipe.imageUrl.startsWith('http')
+                        ? Image.network(widget.recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
+                        : Image.asset(
+                            widget.recipe.imageUrl, 
+                            fit: BoxFit.cover, 
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: const Color.fromARGB(255, 230, 8, 8), 
+                              child: const Center(child: Icon(Icons.image_not_supported, color: Colors.white54, size: 60))
+                            ),
+                          ),
+                  ),
+                  // Conteneur en bas à droite pour les boutons d'édition et suppression
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: Row(
+                      children: [
+                        Container(
+                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                          child: IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.tealAccent),
+                            tooltip: "Modifier l'image",
+                            onPressed: _showEditImageDialog,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                          child: IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            tooltip: "Supprimer la recette",
+                            onPressed: () async {
+                              await widget.controller.destroy(widget.recipe.id); 
+                              if (context.mounted) Navigator.pop(context); 
+                            },
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                ],
+              ),
             ),
           ),
           
-          // Le reste du contenu qui va glisser sous l'image
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.0 : 32.0, vertical: isMobile ? 24.0 : 40.0),
@@ -492,8 +655,10 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   const SizedBox(height: 24),
                   _notionProperty(Icons.person_outline, "Owner", widget.recipe.owner),
                   
-                  // Nouveau menu déroulant modifiable pour la Partie (Entrée, Plat, Dessert)
                   _editableMealPartProperty(),
+                  
+                  // Nouveau sélecteur de catégorie ajouté ici
+                  _editableCategoryProperty(),
                   
                   _notionProperty(Icons.calendar_today_outlined, "Créé le", "${widget.recipe.createdAt.day}/${widget.recipe.createdAt.month}/${widget.recipe.createdAt.year}"),
                   
@@ -626,17 +791,16 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
     );
   }
 
-  // Nouveau widget pour rendre la Partie modifiable avec un Dropdown transparent
   Widget _editableMealPartProperty() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Icon(Icons.tag_outlined, size: 16, color: Colors.grey[600]),
-          const SizedBox(width: 12),
-          SizedBox(width: 100, child: Text("Partie", style: TextStyle(color: Colors.grey[600], fontSize: 14))),
-          Expanded(
-            child: DropdownButtonHideUnderline(
+          Icon(Icons.restaurant_menu_rounded, size: 16, color: Colors.grey[600]), 
+          const SizedBox(width: 12), 
+          SizedBox(width: 100, child: Text("Partie", style: TextStyle(color: Colors.grey[600], fontSize: 14))), 
+          Expanded( 
+            child: DropdownButtonHideUnderline( 
               child: DropdownButton<MealPart>(
                 value: widget.recipe.part,
                 isDense: true,
@@ -649,7 +813,41 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                     setState(() {
                       widget.recipe.part = newPart;
                     });
-                    _syncData(); // Synchronise instantanément le changement dans Supabase
+                    _syncData(); 
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- NOUVEAU SÉLECTEUR DE CATÉGORIE ---
+  Widget _editableCategoryProperty() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(Icons.folder_open_outlined, size: 16, color: Colors.grey[600]), 
+          const SizedBox(width: 12), 
+          SizedBox(width: 100, child: Text("Catégorie", style: TextStyle(color: Colors.grey[600], fontSize: 14))), 
+          Expanded( 
+            child: DropdownButtonHideUnderline( 
+              child: DropdownButton<String>(
+                value: editCategories.contains(widget.recipe.category) ? widget.recipe.category : editCategories.first,
+                isDense: true,
+                iconSize: 20,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
+                dropdownColor: const Color(0xFF1A1A1A),
+                items: editCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (newCat) {
+                  if (newCat != null) {
+                    setState(() {
+                      widget.recipe.category = newCat;
+                    });
+                    _syncData(); // Sauvegarde automatiquement la catégorie modifiée
                   }
                 },
               ),
