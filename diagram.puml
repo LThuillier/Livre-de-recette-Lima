@@ -1,0 +1,68 @@
+@startuml
+skinparam style strictuml
+skinparam classAttributeIconSize 0
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 12
+
+title Diagramme de Classes - Application Flutter (Livre de Recettes)
+
+package "Models (Modèles de données)" {
+    class Recette {
+        + int id
+        + String titre
+        + String description
+        + String imagePath
+        + int tempsPreparation
+        + String difficulte
+        + factory Recette.fromJson(Map<String, dynamic> json)
+    }
+
+    class Ingredient {
+        + int id
+        + String nom
+        + String quantite
+        + String unite
+        + factory Ingredient.fromJson(Map<String, dynamic> json)
+    }
+
+    class Categorie {
+        + int id
+        + String nom
+        + factory Categorie.fromJson(Map<String, dynamic> json)
+    }
+}
+
+package "Services (Réseau)" {
+    class ApiService {
+        - String baseUrl
+        + Future<List<Recette>> getRecettes()
+        + Future<Recette> getRecetteDetails(int id)
+    }
+}
+
+package "UI / Screens (Vues)" {
+    class AccueilScreen {
+        - List<Recette> recettes
+        - bool isLoading
+        + initState()
+        + chargerRecettes()
+        + build(BuildContext context)
+    }
+
+    class DetailsRecetteScreen {
+        + Recette recette
+        + build(BuildContext context)
+    }
+}
+
+' Relations entre les classes
+Recette "1" *-- "0..*" Ingredient : "contient >"
+Recette "1" o-- "1..*" Categorie : "appartient à >"
+
+AccueilScreen ..> ApiService : "utilise pour récupérer les données"
+DetailsRecetteScreen ..> ApiService : "utilise"
+
+AccueilScreen "1" --> "*" Recette : "affiche une liste de >"
+DetailsRecetteScreen "1" --> "1" Recette : "affiche les détails de >"
+
+@enduml

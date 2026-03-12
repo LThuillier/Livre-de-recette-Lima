@@ -1,0 +1,38 @@
+@startuml
+skinparam style strictuml
+skinparam DefaultFontName Arial
+
+title Diagramme de Séquence - Affichage de la liste des recettes
+
+actor Utilisateur
+participant "AccueilScreen\n(Vue Flutter)" as UI
+participant "ApiService\n(Service Réseau)" as API
+database "Serveur Laravel\n(API REST)" as Backend
+
+Utilisateur -> UI : Ouvre l'application
+activate UI
+
+UI -> UI : setState(isLoading = true)
+UI -> API : getRecettes()
+activate API
+
+API -> Backend : Requete HTTP GET /api/recettes
+activate Backend
+
+note right of Backend
+  Le backend interroge
+  la base de données
+end note
+
+Backend --> API : Réponse 200 OK (JSON des recettes)
+deactivate Backend
+
+API -> API : Convertir le JSON en List<Recette>
+API --> UI : Retourne List<Recette>
+deactivate API
+
+UI -> UI : setState(isLoading = false,\nrecettes = données)
+UI --> Utilisateur : Affiche la grille des recettes avec les images
+deactivate UI
+
+@enduml
