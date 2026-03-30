@@ -653,7 +653,6 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   ),
                   
                   const SizedBox(height: 24),
-                  _notionProperty(Icons.person_outline, "Owner", widget.recipe.owner),
                   
                   _editableMealPartProperty(),
                   

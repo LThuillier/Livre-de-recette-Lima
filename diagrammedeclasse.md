@@ -22,7 +22,6 @@ classDiagram
         + createdAt: DateTime
         + owner: String
     }
-
     class Ingredient {
         + name: String
         + quantity: double

@@ -11,7 +11,6 @@ class Recipe {
   String description;
   List<Ingredient> ingredients; 
   DateTime createdAt;
-  String owner;
   MealPart part; 
 
   Recipe({
@@ -23,7 +22,6 @@ class Recipe {
     this.description = "",
     required this.ingredients, 
     required this.createdAt,
-    this.owner = "Matéo Esteban",
     this.part = MealPart.plat,
   });
 }

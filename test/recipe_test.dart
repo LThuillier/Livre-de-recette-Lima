@@ -21,7 +21,6 @@ void main() {
       );
 
       // 2. ASSERTION : On vérifie que les valeurs par défaut se sont bien appliquées
-      expect(recette.owner, 'Matéo Esteban', reason: "Le propriétaire par défaut doit être Matéo Esteban");
       expect(recette.part, MealPart.plat, reason: "Par défaut, une recette doit être un plat");
       expect(recette.description, '', reason: "La description doit être vide par défaut et non null");
     });

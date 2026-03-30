@@ -45,7 +45,6 @@ class RecipeController {
           description: json['description'] ?? '',
           ingredients: ingredientsList,
           createdAt: DateTime.parse(json['created_at']),
-          owner: json['owner'] ?? 'Matéo Esteban',
         );
       }).toList();
     } catch (e) {
@@ -64,7 +63,6 @@ class RecipeController {
         'part': r.part.name,
         'image_url': r.imageUrl,
         'description': r.description,
-        'owner': r.owner,
       }).select().single();
 
       // On met à jour l'ID de notre recette locale avec l'UUID de la base
@@ -135,25 +133,25 @@ class RecipeController {
   }
 
   // === PLANNING HEBDOMADAIRE ===
-  Map<String, Map<String, List<Recipe>>> generateWeeklyPlan() {
-    final days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-    Map<String, Map<String, List<Recipe>>> plan = {};
-    for (var day in days) {
-      plan[day] = {"Midi": _getRandomFullMeal(), "Soir": _getRandomFullMeal()};
+  Map<String, Map<String, List<Recipe>>> generateWeeklyPlan() { // Retourne un plan structuré par jour et repas
+    final days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]; // Jours de la semaine
+    Map<String, Map<String, List<Recipe>>> plan = {}; // Structure : { "Lundi": { "Midi": [...], "Soir": [...] }, ... }
+    for (var day in days) {// Pour chaque jour, on génère un repas du midi et du soir
+      plan[day] = {"Midi": _getRandomFullMeal(), "Soir": _getRandomFullMeal()};// Chaque repas est composé d'une entrée, d'un plat et d'un dessert aléatoires
     }
     return plan;
   }
 
-  List<Recipe> _getRandomFullMeal() {
-    final entrees = _recipes.where((r) => r.part == MealPart.entree).toList();
-    final plats = _recipes.where((r) => r.part == MealPart.plat).toList();
-    final desserts = _recipes.where((r) => r.part == MealPart.dessert).toList();
-    Recipe fallback = _recipes.isNotEmpty ? _recipes[0] : Recipe(id: '0', title: 'Vide', category: '', label: '', imageUrl: '', createdAt: DateTime.now(), ingredients: []);
+  List<Recipe> _getRandomFullMeal() {  // Retourne une liste de 3 recettes : entrée, plat, dessert
+    final entrees = _recipes.where((r) => r.part == MealPart.entree).toList(); // Filtrer les recettes par type de plat
+    final plats = _recipes.where((r) => r.part == MealPart.plat).toList(); // Idem pour les plats
+    final desserts = _recipes.where((r) => r.part == MealPart.dessert).toList(); // Idem pour les desserts
+    Recipe fallback = _recipes.isNotEmpty ? _recipes[0] : Recipe(id: '0', title: 'Vide', category: '', label: '', imageUrl: '', createdAt: DateTime.now(), ingredients: []); // Recette de secours si une catégorie est vide  
     
     return [
-      entrees.isNotEmpty ? entrees[Random().nextInt(entrees.length)] : fallback,
-      plats.isNotEmpty ? plats[Random().nextInt(plats.length)] : fallback,
-      desserts.isNotEmpty ? desserts[Random().nextInt(desserts.length)] : fallback,
+      entrees.isNotEmpty ? entrees[Random().nextInt(entrees.length)] : fallback, // Choisir une entrée aléatoire ou la recette de secours
+      plats.isNotEmpty ? plats[Random().nextInt(plats.length)] : fallback, // Choisir un plat aléatoire ou la recette de secours
+      desserts.isNotEmpty ? desserts[Random().nextInt(desserts.length)] : fallback, // Choisir un dessert aléatoire ou la recette de secours
     ];
   }
 }
