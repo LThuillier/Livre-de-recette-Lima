@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
-import 'dart:convert'; // Ajouté pour encoder le planning
-import 'dart:io'; // Ajouté pour gérer le fichier image
-import 'package:image_picker/image_picker.dart'; // Ajouté pour la galerie photo
-import 'package:shared_preferences/shared_preferences.dart'; // Ajouté pour sauvegarder localement
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/recipe.dart';
 import '../models/ingredient.dart';
 import '../controllers/recipe_controller.dart'; 
@@ -34,7 +33,6 @@ class CuisineProApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           themeMode: currentMode,
-          // --- THÈME CLAIR (Pastel) ---
           theme: ThemeData(
             brightness: Brightness.light, 
             scaffoldBackgroundColor: const Color(0xFFFFF5F7), 
@@ -45,7 +43,6 @@ class CuisineProApp extends StatelessWidget {
               focusedBorder: InputBorder.none,
             ),
           ),
-          // --- THÈME SOMBRE (Original) ---
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             scaffoldBackgroundColor: const Color(0xFF0F0F0F),
@@ -88,8 +85,9 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
   }
 
   Future<void> _loadRecipes() async {
+    setState(() => _isLoading = true);
     await _controller.fetchRecipes();
-    await _initOrGetPlan(); // On charge le planning après avoir récupéré les recettes
+    await _initOrGetPlan(); 
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -97,7 +95,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     }
   }
 
-  // --- LOGIQUE DE SAUVEGARDE DU PLANNING ---
   Future<void> _initOrGetPlan() async {
     final prefs = await SharedPreferences.getInstance();
     final planDateStr = prefs.getString('planDate');
@@ -105,25 +102,22 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
 
     if (planDateStr != null && planDataStr != null) {
       _planDate = DateTime.parse(planDateStr);
-      // Garde le plan si ça fait moins de 7 jours
       if (DateTime.now().difference(_planDate!).inDays < 7) {
         try {
           final decoded = jsonDecode(planDataStr) as Map<String, dynamic>;
           _weeklyPlan = _reconstructPlanFromJson(decoded);
-          return; // Plan chargé avec succès
+          return; 
         } catch (e) {
-          debugPrint("Erreur lors de la lecture du plan sauvegardé: $e");
+          debugPrint("Erreur lors de la lecture du plan: $e");
         }
       }
     }
     
-    // Si on arrive ici, le plan a plus de 7 jours (ou n'existe pas), on en génère un nouveau
     _weeklyPlan = _generatePlan();
     _planDate = DateTime.now();
     await _savePlanToPrefs();
   }
 
-  // Permet de reconstruire les objets "Recipe" à partir des IDs sauvegardés
   Map<String, Map<String, List<Recipe>>> _reconstructPlanFromJson(Map<String, dynamic> json) {
     Map<String, Map<String, List<Recipe>>> plan = {};
     final days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -146,7 +140,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           continue;
         } catch (_) {}
       }
-      // Fallback au cas où une recette a été supprimée de la base entre temps
       MealPart part = i == 0 ? MealPart.entree : (i == 1 ? MealPart.plat : MealPart.dessert);
       final candidates = _controller.all.where((r) => r.part == part).toList();
       Recipe fallback = candidates.isNotEmpty 
@@ -157,7 +150,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     return result;
   }
 
-  // Sauvegarde le plan dans le téléphone
   Future<void> _savePlanToPrefs() async {
     if (_weeklyPlan == null || _planDate == null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -216,16 +208,18 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
           appBar: AppBar(
             backgroundColor: bgAppBarColor,
             iconTheme: IconThemeData(color: textColor),
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text("LES RECETTES DE LIMA", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: textColor)),
-                const SizedBox(width: 8),
-              ],
+            titleSpacing: isMobile ? 0 : 16, 
+            title: FittedBox( 
+              fit: BoxFit.scaleDown,
+              child: Text("LES RECETTES DE LIMA", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: textColor)),
             ),
             elevation: 0,
             actions: [
-              // BOUTON RECHERCHE
+              IconButton(
+                onPressed: _loadRecipes, 
+                icon: Icon(Icons.refresh, color: tealColor, size: 26),
+                tooltip: "Actualiser les recettes",
+              ),
               IconButton(
                 onPressed: () {
                   showSearch(context: context, delegate: RecipeSearchDelegate(_controller.all, _controller));
@@ -233,13 +227,11 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                 icon: Icon(Icons.search, color: tealColor, size: 26),
                 tooltip: "Chercher une recette",
               ),
-              // BOUTON AJOUTER
               IconButton(
                 onPressed: () => _showFormDialog(isLight), 
                 icon: Icon(Icons.add_circle_outline, color: tealColor, size: 28),
                 tooltip: "Ajouter une recette",
               ),
-              // BOUTON CHANGEMENT DE THÈME (Déplacé tout à droite)
               IconButton(
                 onPressed: () {
                   themeNotifier.value = isLight ? ThemeMode.dark : ThemeMode.light;
@@ -256,9 +248,31 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
               Expanded(
                 child: Stack(
                   children: [
-                    _isLoading 
-                      ? Center(child: CircularProgressIndicator(color: tealColor))
-                      : GridView.builder(
+                    if (_isLoading)
+                      Center(child: CircularProgressIndicator(color: tealColor))
+                    else if (filteredList.isEmpty)
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.restaurant_menu, size: 64, color: isLight ? Colors.pink.shade100 : Colors.grey[800]),
+                            const SizedBox(height: 16),
+                            Text("Aucune recette ici !", style: TextStyle(color: isLight ? Colors.grey[500] : Colors.grey[600], fontSize: 18)),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _loadRecipes,
+                              style: ElevatedButton.styleFrom(backgroundColor: tealColor, foregroundColor: Colors.white),
+                              child: const Text("Rafraîchir"),
+                            )
+                          ],
+                        ),
+                      )
+                    else
+                      RefreshIndicator(
+                        onRefresh: _loadRecipes,
+                        color: tealColor,
+                        child: GridView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(), 
                           padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100),
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: crossAxisCount,
@@ -269,6 +283,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                           itemCount: filteredList.length,
                           itemBuilder: (context, index) => _recipeCard(filteredList[index], isLight),
                         ),
+                      ),
                     
                     Positioned(
                       bottom: 20,
@@ -277,7 +292,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                       child: Center(
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.tealAccent, // Toujours vif pour attirer l'oeil
+                            backgroundColor: Colors.tealAccent, 
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -359,7 +374,15 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
             Expanded(child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: recipe.imageUrl.startsWith('http')
-                  ? Image.network(recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
+                  ? Image.network(
+                      recipe.imageUrl, 
+                      fit: BoxFit.cover, 
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: isLight ? Colors.pink.shade50 : Colors.grey[800], 
+                        child: Icon(Icons.broken_image, color: isLight ? Colors.pink.shade200 : Colors.white54, size: 40)
+                      ),
+                    )
                   : Image.asset(
                       recipe.imageUrl, 
                       fit: BoxFit.cover, 
@@ -393,13 +416,13 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     MealPart selectedPart = MealPart.plat;
     String selectedCat = categories[1];
     
-    // Variables pour l'upload d'image
     String? uploadedImageUrl;
     bool isUploadingImage = false;
+    String? uploadError; 
 
     showDialog(
       context: context,
-      barrierDismissible: !isUploadingImage, // Empêche de fermer pendant l'upload
+      barrierDismissible: !isUploadingImage, 
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: isLight ? Colors.white : const Color(0xFF151515), 
@@ -433,7 +456,12 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                 ),
                 const SizedBox(height: 25),
                 
-                // --- BOUTON DE GALERIE REMPLACE LE TEXTE ---
+                if (uploadError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 15),
+                    child: Text(uploadError!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  ),
+
                 if (isUploadingImage)
                   const CircularProgressIndicator(color: Colors.teal)
                 else
@@ -447,31 +475,40 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                             child: Image.network(uploadedImageUrl!, height: 120, width: double.infinity, fit: BoxFit.cover),
                           ),
                         ),
+                      // BOUTON APPAREIL PHOTO / GALERIE UNIQUE
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isLight ? Colors.teal : Colors.tealAccent,
                           foregroundColor: isLight ? Colors.white : Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                         ),
                         onPressed: () async {
                           final picker = ImagePicker();
-                          // Ouvre la galerie du téléphone/PC
                           final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-                          if (pickedFile == null) return; // Si on annule
+                          if (pickedFile == null) return; 
 
-                          setDialogState(() => isUploadingImage = true);
+                          setDialogState(() { 
+                            isUploadingImage = true; 
+                            uploadError = null; 
+                          });
 
                           try {
-                            final file = File(pickedFile.path);
-                            final fileExt = pickedFile.path.split('.').last;
-                            // Créé un nom unique basé sur l'heure pour ne pas écraser d'autres images
+                            final fileBytes = await pickedFile.readAsBytes();
+                            String fileExt = 'png';
+                            if (pickedFile.name.contains('.')) {
+                              fileExt = pickedFile.name.split('.').last.toLowerCase(); 
+                            }
                             final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+                            final mimeType = pickedFile.mimeType ?? 'image/$fileExt';
 
-                            // Envoie dans Supabase Storage ("recettes")
                             await Supabase.instance.client.storage
                                 .from('recettes')
-                                .upload(fileName, file);
+                                .uploadBinary(
+                                  fileName, 
+                                  fileBytes,
+                                  fileOptions: FileOptions(contentType: mimeType),
+                                );
 
-                            // Récupère l'URL publique générée par Supabase
                             final publicUrl = Supabase.instance.client.storage
                                 .from('recettes')
                                 .getPublicUrl(fileName);
@@ -481,12 +518,15 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                               isUploadingImage = false;
                             });
                           } catch (e) {
-                            setDialogState(() => isUploadingImage = false);
-                            debugPrint("Erreur lors de l'upload: $e");
+                            setDialogState(() {
+                              isUploadingImage = false;
+                              uploadError = "Erreur Supabase : $e";
+                            });
+                            debugPrint("Erreur upload: $e");
                           }
                         },
                         icon: const Icon(Icons.camera_alt),
-                        label: Text(uploadedImageUrl == null ? "Ajouter une photo" : "Changer la photo"),
+                        label: Text(uploadedImageUrl == null ? "Appareil photo / Galerie" : "Changer la photo"),
                       ),
                     ],
                   ),
@@ -508,12 +548,11 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                     category: selectedCat,
                     label: 'Nouveau',
                     part: selectedPart,
-                    // Si on a uploadé, on prend l'URL de Supabase, sinon image par défaut !
-                    imageUrl: uploadedImageUrl ?? 'assets/pictures/pancake.png', 
+                    imageUrl: uploadedImageUrl ?? 'assets/pictures/default.png', 
                     createdAt: DateTime.now(),
                     ingredients: [],
                   ));
-                  setState(() {});
+                  await _loadRecipes();
                   if (context.mounted) Navigator.pop(context); 
                 }
               },
@@ -555,7 +594,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                             _weeklyPlan = _generatePlan();
                             _planDate = DateTime.now();
                           });
-                          _savePlanToPrefs(); // On sauvegarde
+                          _savePlanToPrefs(); 
                           setSheetState(() {});
                         },
                       )
@@ -565,7 +604,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                 Expanded(
                   child: ListView(
                     controller: scrollController,
-                    // PADDING REDUIT ICI : bottom à 30 au lieu de 60
                     padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 30),
                     children: _weeklyPlan!.keys.map((day) => _buildDayPlan(day, _weeklyPlan![day]!, setSheetState, isLight)).toList(),
                   ),
@@ -606,7 +644,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                   setState(() {
                     _weeklyPlan![day]![mealTime] = _getRandomFullMeal();
                   });
-                  _savePlanToPrefs(); // On sauvegarde
+                  _savePlanToPrefs(); 
                   setSheetState(() {}); 
                 },
                 child: Icon(Icons.autorenew, size: 16, color: isLight ? Colors.teal : Colors.tealAccent),
@@ -626,7 +664,6 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
     return Row(
       children: [
         Expanded(
-          // InkWell REND LA RECETTE CLIQUABLE DANS LE PLANNING
           child: InkWell(
             onTap: () async {
               await Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailPage(recipe: recipe, controller: _controller)));
@@ -652,7 +689,7 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
               setState(() {
                 _weeklyPlan![day]![mealTime]![dishIndex] = candidates[Random().nextInt(candidates.length)];
               });
-              _savePlanToPrefs(); // On sauvegarde
+              _savePlanToPrefs(); 
               setSheetState(() {});
             }
           },
@@ -810,9 +847,9 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
     );
   }
 
-  // --- BOUTON DE GALERIE REMPLACE LE TEXTE AUSSI POUR L'EDITION ---
   void _showEditImageDialog(bool isLight) {
     bool isUploading = false;
+    String? uploadError;
 
     showDialog(
       context: context,
@@ -823,61 +860,86 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
           title: Text("Modifier l'image", style: TextStyle(color: isLight ? Colors.black87 : Colors.white)),
           content: isUploading 
             ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(color: Colors.tealAccent)))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: widget.recipe.imageUrl.startsWith('http')
-                        ? Image.network(widget.recipe.imageUrl, height: 150, width: double.infinity, fit: BoxFit.cover)
-                        : Image.asset(widget.recipe.imageUrl, height: 150, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_,__,___) => const SizedBox()),
-                  ),
-                  const SizedBox(height: 15),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isLight ? Colors.teal : Colors.tealAccent,
-                      foregroundColor: isLight ? Colors.white : Colors.black,
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: widget.recipe.imageUrl.startsWith('http')
+                          ? Image.network(widget.recipe.imageUrl, height: 150, width: double.infinity, fit: BoxFit.cover)
+                          : Image.asset(widget.recipe.imageUrl, height: 150, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_,__,___) => const SizedBox()),
                     ),
-                    onPressed: () async {
-                      final picker = ImagePicker();
-                      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-                      if (pickedFile == null) return;
+                    const SizedBox(height: 15),
 
-                      setDialogState(() => isUploading = true);
-                      try {
-                        final file = File(pickedFile.path);
-                        final fileExt = pickedFile.path.split('.').last;
-                        final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+                    if (uploadError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 15),
+                        child: Text(uploadError!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      ),
 
-                        await Supabase.instance.client.storage
-                            .from('recettes')
-                            .upload(fileName, file);
+                    // BOUTON APPAREIL PHOTO / GALERIE UNIQUE
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isLight ? Colors.teal : Colors.tealAccent,
+                        foregroundColor: isLight ? Colors.white : Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                      ),
+                      onPressed: () async {
+                        final picker = ImagePicker();
+                        final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                        if (pickedFile == null) return;
 
-                        final publicUrl = Supabase.instance.client.storage
-                            .from('recettes')
-                            .getPublicUrl(fileName);
-
-                        // On met à jour l'image directement sans devoir valider avec un autre bouton
-                        setState(() {
-                          widget.recipe.imageUrl = publicUrl;
+                        setDialogState(() { 
+                          isUploading = true; 
+                          uploadError = null;
                         });
-                        _syncData(); // Synchronise avec ta base de données
-                        
-                        if (context.mounted) Navigator.pop(context); // Ferme la boîte de dialogue une fois terminé
-                      } catch (e) {
-                        setDialogState(() => isUploading = false);
-                        debugPrint("Erreur upload: $e");
-                      }
-                    },
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text("Choisir depuis la galerie"),
-                  ),
-                ],
+
+                        try {
+                          final fileBytes = await pickedFile.readAsBytes();
+                          String fileExt = 'png';
+                          if (pickedFile.name.contains('.')) {
+                            fileExt = pickedFile.name.split('.').last.toLowerCase(); 
+                          }
+                          final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+                          final mimeType = pickedFile.mimeType ?? 'image/$fileExt';
+
+                          await Supabase.instance.client.storage
+                              .from('recettes')
+                              .uploadBinary(
+                                fileName, 
+                                fileBytes,
+                                fileOptions: FileOptions(contentType: mimeType),
+                              );
+
+                          final publicUrl = Supabase.instance.client.storage
+                              .from('recettes')
+                              .getPublicUrl(fileName);
+
+                          setState(() {
+                            widget.recipe.imageUrl = publicUrl;
+                          });
+                          _syncData(); 
+                          
+                          if (context.mounted) Navigator.pop(context); 
+                        } catch (e) {
+                          setDialogState(() {
+                            isUploading = false;
+                            uploadError = "Erreur Supabase : $e";
+                          });
+                          debugPrint("Erreur upload: $e");
+                        }
+                      },
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text("Appareil photo / Galerie"),
+                    ),
+                  ],
+                ),
               ),
           actions: [
             TextButton(
               onPressed: isUploading ? null : () => Navigator.pop(context), 
-              child: Text("Annuler", style: TextStyle(color: isLight ? Colors.grey : Colors.white70))
+              child: Text("Fermer", style: TextStyle(color: isLight ? Colors.grey : Colors.white70))
             ),
           ],
         ),
@@ -913,7 +975,15 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                   GestureDetector( 
                     onTap: _showFullScreenImage,
                     child: widget.recipe.imageUrl.startsWith('http')
-                        ? Image.network(widget.recipe.imageUrl, fit: BoxFit.cover, width: double.infinity)
+                        ? Image.network(
+                            widget.recipe.imageUrl, 
+                            fit: BoxFit.cover, 
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: isLight ? Colors.pink.shade50 : Colors.grey[800], 
+                              child: Center(child: Icon(Icons.broken_image, color: isLight ? Colors.pink.shade200 : Colors.white54, size: 60))
+                            ),
+                          )
                         : Image.asset(
                             widget.recipe.imageUrl, 
                             fit: BoxFit.cover, 
