@@ -1,68 +1,60 @@
 @startuml
-skinparam style strictuml
 skinparam classAttributeIconSize 0
-skinparam DefaultFontName Arial
-skinparam DefaultFontSize 12
+skinparam monochrome false
+skinparam shadowing false
 
-title Diagramme de Classes - Application Flutter (Livre de Recettes)
+title Diagramme de Classes - Livre de Recettes
 
-package "Models (Modèles de données)" {
+package "App\\Models" {
+    
+    class User {
+        + int id
+        + string name
+        + string email
+        + string password
+        + timestamp created_at
+        + timestamp updated_at
+    }
+
     class Recette {
         + int id
-        + String titre
-        + String description
-        + String imagePath
-        + int tempsPreparation
-        + String difficulte
-        + factory Recette.fromJson(Map<String, dynamic> json)
+        + string titre
+        + text description
+        + int temps_preparation
+        + int portions
+        + enum difficulte
+        + enum regime_alimentaire
+        + boolean est_public
+        + int user_id
+        + timestamp created_at
+        + timestamp updated_at
     }
 
     class Ingredient {
         + int id
-        + String nom
-        + String quantite
-        + String unite
-        + factory Ingredient.fromJson(Map<String, dynamic> json)
+        + string nom
+        + string unite_mesure
+        + timestamp created_at
+        + timestamp updated_at
     }
 
-    class Categorie {
+    class Role <<Spatie>> {
         + int id
-        + String nom
-        + factory Categorie.fromJson(Map<String, dynamic> json)
+        + string name
+        + string guard_name
+    }
+
+    class "recette_ingredient\n(Table Pivot)" as Pivot {
+        + int recette_id
+        + int ingredient_id
+        + decimal quantite
+        + string unite
     }
 }
 
-package "Services (Réseau)" {
-    class ApiService {
-        - String baseUrl
-        + Future<List<Recette>> getRecettes()
-        + Future<Recette> getRecetteDetails(int id)
-    }
-}
-
-package "UI / Screens (Vues)" {
-    class AccueilScreen {
-        - List<Recette> recettes
-        - bool isLoading
-        + initState()
-        + chargerRecettes()
-        + build(BuildContext context)
-    }
-
-    class DetailsRecetteScreen {
-        + Recette recette
-        + build(BuildContext context)
-    }
-}
-
-' Relations entre les classes
-Recette "1" *-- "0..*" Ingredient : "contient >"
-Recette "1" o-- "1..*" Categorie : "appartient à >"
-
-AccueilScreen ..> ApiService : "utilise pour récupérer les données"
-DetailsRecetteScreen ..> ApiService : "utilise"
-
-AccueilScreen "1" --> "*" Recette : "affiche une liste de >"
-DetailsRecetteScreen "1" --> "1" Recette : "affiche les détails de >"
+User "1" -- "0..*" Recette : crée >
+User "0..*" -- "0..*" Role : possède >
+Recette "1" -- "0..*" Pivot : contient >
+Ingredient "1" -- "0..*" Pivot : est utilisé dans <
 
 @enduml

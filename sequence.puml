@@ -1,38 +1,32 @@
 @startuml
-skinparam style strictuml
-skinparam DefaultFontName Arial
+actor "Administrateur" as Admin
+participant "Vue\n(create.blade.php)" as Vue
+participant "IngredientController" as Controller
+participant "Validation\n(Request)" as Validator
+database "Base de données\n(MySQL)" as BDD
 
-title Diagramme de Séquence - Affichage de la liste des recettes
+Admin -> Vue : Accède au formulaire d'ajout
+activate Vue
+Vue --> Admin : Affiche le formulaire
+deactivate Vue
 
-actor Utilisateur
-participant "AccueilScreen\n(Vue Flutter)" as UI
-participant "ApiService\n(Service Réseau)" as API
-database "Serveur Laravel\n(API REST)" as Backend
+Admin -> Vue : Saisit (nom, unite_mesure) et valide
+activate Vue
+Vue -> Controller : POST /ingredients (store)
+activate Controller
 
-Utilisateur -> UI : Ouvre l'application
-activate UI
+Controller -> Validator : validate()
+activate Validator
+Validator --> Controller : Données valides
+deactivate Validator
 
-UI -> UI : setState(isLoading = true)
-UI -> API : getRecettes()
-activate API
+Controller -> BDD : INSERT INTO ingredients (nom, unite_mesure)
+activate BDD
+BDD --> Controller : Succès (Nouvel ID)
+deactivate BDD
 
-API -> Backend : Requete HTTP GET /api/recettes
-activate Backend
-
-note right of Backend
-  Le backend interroge
-  la base de données
-end note
-
-Backend --> API : Réponse 200 OK (JSON des recettes)
-deactivate Backend
-
-API -> API : Convertir le JSON en List<Recette>
-API --> UI : Retourne List<Recette>
-deactivate API
-
-UI -> UI : setState(isLoading = false,\nrecettes = données)
-UI --> Utilisateur : Affiche la grille des recettes avec les images
-deactivate UI
-
+Controller --> Vue : redirect()->route('ingredients.index')
+deactivate Controller
+Vue --> Admin : Affiche la liste avec message "Succès"
+deactivate Vue
 @enduml

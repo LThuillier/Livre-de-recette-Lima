@@ -1,0 +1,31 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Visiteur" as V
+actor "Utilisateur (Connecté)" as U
+actor "Administrateur" as A
+
+U -|> V : "est un"
+A -|> U : "est un"
+
+rectangle "Livre de Recettes (Laravel)" {
+  usecase "Consulter les recettes publiques" as UC1
+  usecase "Créer un compte / S'authentifier" as UC2
+  usecase "Créer, modifier, supprimer ses recettes (CRUD)" as UC3
+  usecase "Calculer les portions (dynamique)" as UC4
+  usecase "Gérer tous les utilisateurs" as UC5
+  usecase "Gérer toutes les recettes du site" as UC6
+  usecase "Gérer la bibliothèque d'ingrédients" as UC7
+}
+
+V --> UC1
+V --> UC2
+
+U --> UC3
+U --> UC4
+
+A --> UC5
+A --> UC6
+A --> UC7
+@enduml
