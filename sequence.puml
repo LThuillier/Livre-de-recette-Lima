@@ -1,32 +1,42 @@
 @startuml
-actor "Administrateur" as Admin
-participant "Vue\n(create.blade.php)" as Vue
-participant "IngredientController" as Controller
-participant "Validation\n(Request)" as Validator
-database "Base de données\n(MySQL)" as BDD
+title Diagramme de Séquence - Ajout d'une recette
 
-Admin -> Vue : Accède au formulaire d'ajout
-activate Vue
-Vue --> Admin : Affiche le formulaire
-deactivate Vue
+skinparam maxMessageSize 150
+skinparam participant {
+    BackgroundColor LightCyan
+    BorderColor DarkCyan
+}
+skinparam database {
+    BackgroundColor LightYellow
+    BorderColor DarkGoldenRod
+}
+skinparam actor {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+}
 
-Admin -> Vue : Saisit (nom, unite_mesure) et valide
-activate Vue
-Vue -> Controller : POST /ingredients (store)
-activate Controller
+actor "Utilisateur" as User
+participant "Vue Flutter\n(AjoutRecetteScreen)" as View
+participant "Service Réseau\n(SupabaseService)" as Service
+database "Base de données\n(Supabase)" as DB
 
-Controller -> Validator : validate()
-activate Validator
-Validator --> Controller : Données valides
-deactivate Validator
+User -> View : Remplit le formulaire (titre, image, etc.)\net clique sur "Enregistrer"
+activate View
 
-Controller -> BDD : INSERT INTO ingredients (nom, unite_mesure)
-activate BDD
-BDD --> Controller : Succès (Nouvel ID)
-deactivate BDD
+View -> Service : ajouterRecette(nouvelleRecette)
+activate Service
 
-Controller --> Vue : redirect()->route('ingredients.index')
-deactivate Controller
-Vue --> Admin : Affiche la liste avec message "Succès"
-deactivate Vue
+Service -> Service : Validation des données saisies
+
+Service -> DB : Requête d'insertion (SDK Supabase)
+activate DB
+
+DB --> Service : Réponse 201 Created (Succès)
+deactivate DB
+
+Service --> View : Retourne un statut de succès
+deactivate Service
+
+View --> User : Affiche un message de confirmation\net redirige vers l'accueil
+deactivate View
 @enduml

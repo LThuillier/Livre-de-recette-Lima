@@ -1,31 +1,37 @@
 @startuml
 left to right direction
 skinparam packageStyle rectangle
-
-actor "Visiteur" as V
-actor "Utilisateur (Connecté)" as U
-actor "Administrateur" as A
-
-U -|> V : "est un"
-A -|> U : "est un"
-
-rectangle "Livre de Recettes (Laravel)" {
-  usecase "Consulter les recettes publiques" as UC1
-  usecase "Créer un compte / S'authentifier" as UC2
-  usecase "Créer, modifier, supprimer ses recettes (CRUD)" as UC3
-  usecase "Calculer les portions (dynamique)" as UC4
-  usecase "Gérer tous les utilisateurs" as UC5
-  usecase "Gérer toutes les recettes du site" as UC6
-  usecase "Gérer la bibliothèque d'ingrédients" as UC7
+skinparam usecase {
+    BackgroundColor LightCyan
+    BorderColor DarkCyan
+    ArrowColor DimGray
+}
+skinparam actor {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
 }
 
-V --> UC1
-V --> UC2
+actor "Utilisateur" as U
 
-U --> UC3
-U --> UC4
+rectangle "Les recettes de Lima (Application Flutter)" {
+  usecase "Consulter la liste des recettes" as UC_Consulter
+  usecase "Filtrer les recettes par catégorie" as UC_Filtrer
+  usecase "Ajouter une nouvelle recette" as UC_Ajouter
+  usecase "Modifier une recette existante" as UC_Modifier
+  usecase "Supprimer une recette" as UC_Supprimer
+  usecase "Générer le planning de la semaine" as UC_Planning
+  usecase "Actualiser aléatoirement un repas" as UC_Actualiser
+}
 
-A --> UC5
-A --> UC6
-A --> UC7
+' Liaisons principales avec l'utilisateur
+U --> UC_Consulter
+U --> UC_Ajouter
+U --> UC_Modifier
+U --> UC_Supprimer
+U --> UC_Planning
+
+' Inclusions / Extensions (Optionnelles mais très bien vues pour le BTS)
+UC_Consulter <.. UC_Filtrer : <<extend>>
+UC_Planning <.. UC_Actualiser : <<extend>>
+
 @enduml
