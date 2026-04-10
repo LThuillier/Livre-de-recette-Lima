@@ -4,9 +4,10 @@ import 'dart:math';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/recipe.dart';
-import '../models/ingredient.dart';
-import '../controllers/recipe_controller.dart'; 
+import 'package:livre_de_recettes/controllers/recipe_controller.dart';
+import 'package:livre_de_recettes/models/ingredient.dart';
+import 'package:livre_de_recettes/models/recipe.dart';
+import 'package:livre_de_recettes/pages/docx_reader_page.dart';
 
 // Variable globale pour gérer le thème (Clair / Sombre)
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -226,6 +227,16 @@ class _RecipeIndexPageState extends State<RecipeIndexPage> {
                 }, 
                 icon: Icon(Icons.search, color: tealColor, size: 26),
                 tooltip: "Chercher une recette",
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DocxReaderPage()),
+                  );
+                },
+                icon: Icon(Icons.description_outlined, color: tealColor, size: 26),
+                tooltip: "Lire un fichier DOCX",
               ),
               IconButton(
                 onPressed: () => _showFormDialog(isLight), 

@@ -25,6 +25,7 @@ migrate_working_dir/
 
 # Flutter/Dart/Pub related
 **/doc/api/
+docs/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
@@ -32,6 +33,11 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
 
 # Symbolication related
 app.*.symbols

@@ -64,6 +64,25 @@ Tests presents:
 - `test/ingredient_test.dart`: TDD sur `Ingredient.toString()`
 - `test/recipe_test.dart`: valeurs par defaut Recipe + enum `MealPart`
 
+## Lecture de documents DOCX
+Un lecteur DOCX est disponible dans l'application via l'icone `document` de la barre du haut.
+
+Fonctionnement:
+- selection d'un fichier `.docx`
+- extraction du texte depuis le document Word
+- affichage du contenu en lecture dans un ecran dedie
+
+## Documentation API (equivalent phpdoc en Dart)
+Le projet etant en Flutter/Dart, l'equivalent de `phpdoc` est `dartdoc`.
+
+Generation de la documentation:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\generate_api_docs.ps1
+```
+
+Sortie generee:
+- `docs/api/index.html`
+
 ## Points techniques a presenter a l oral
 - CRUD recettes via Supabase (controller dedie)
 - gestion des ingredients lies a une recette
